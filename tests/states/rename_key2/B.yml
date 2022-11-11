@@ -1,0 +1,5 @@
+switch:
+  name: R1
+  interfaces:
+    - name: eth1
+      ip_address: 1.1.1.1

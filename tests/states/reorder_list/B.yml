@@ -1,0 +1,7 @@
+routers:
+    - name: R1
+    - name: R3
+    - name: R2
+    - name: R4
+    - name: R5
+    - name: R6

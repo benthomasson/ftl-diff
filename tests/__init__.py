@@ -1,1 +1,1 @@
-"""Unit test package for ftl_diff."""
+"""Unit test package for desired_state."""

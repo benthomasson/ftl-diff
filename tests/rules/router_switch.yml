@@ -1,0 +1,5 @@
+rules:
+- rule_selector: root.router
+  inventory_selector: node.name
+- rule_selector: root.switch
+  inventory_selector: node.name

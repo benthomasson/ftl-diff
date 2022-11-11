@@ -1,0 +1,3 @@
+routers:
+    - name: R1
+      router-id: 1.1.1.1

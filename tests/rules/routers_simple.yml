@@ -1,0 +1,3 @@
+rules:
+- rule_selector: root.routers.index
+  inventory_selector: node.name
