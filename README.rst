@@ -16,7 +16,11 @@ ftl-diff
 
 
 
-Finds the differences between two states
+Finds the differences between two states.
+
+FTL diff finds the differences between two YAML files which represent the state
+of your infrastructure. It then performs the necessary actions to bring the
+state of your infrastructure to the desired state.
 
 
 * Free software: Apache Software License 2.0
