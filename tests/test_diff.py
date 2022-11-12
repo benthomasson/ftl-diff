@@ -3,18 +3,33 @@ from deepdiff import DeepDiff, extract
 import yaml
 import re
 
+from typing import NamedTuple, Optional, Any
+
+
+class Action(NamedTuple):
+
+    operation: str
+    path: str
+    old_value: Optional[Any] = None
+    new_value: Optional[Any] = None
+
+
+UPDATE = "update"
+CREATE = "create"
+DELETE = "delete"
+
 
 def convert_to_actions(diff):
     for key in diff.keys():
         if key == "values_changed":
             for path, value in diff[key].items():
-                yield f"Update {path} from {value['old_value']} to {value['new_value']}"
+                yield Action(UPDATE, path, value["old_value"], value["new_value"])
         elif key == "iterable_item_added":
             for path, value in diff[key].items():
-                yield f"Create {path} with {value}"
+                yield Action(CREATE, path, None, value)
         elif key == "iterable_item_removed":
             for path, value in diff[key].items():
-                yield f"Delete {path} with {value}"
+                yield Action(DELETE, path, value, None)
 
 
 def test_same():
@@ -30,7 +45,7 @@ def test_different():
         "values_changed": {"root[1]": {"new_value": 2, "old_value": 1}}
     }
     actions = convert_to_actions(DeepDiff(t1, t2))
-    next(actions) == "Update root[1] from 1 to 2"
+    assert next(actions) == (UPDATE, "root[1]", 1, 2)
     # Update root[1] from 1 to 2
 
 
@@ -57,7 +72,7 @@ def test_diff_tree_add_item():
         "iterable_item_added": {"root['routers'][2]": {"name": "R3"}}
     }
     actions = convert_to_actions(DeepDiff(t1, t2))
-    next(actions) == "Create root['routers'][2] with {'name': 'R3'}"
+    assert next(actions) == (CREATE, "root['routers'][2]", None, {"name": "R3"})
     # Create root['routers'][2] with {'name': 'R3'}
 
 
@@ -82,7 +97,7 @@ def test_diff_tree_remove_item():
         "iterable_item_removed": {"root['routers'][1]": {"name": "R2"}}
     }
     actions = convert_to_actions(DeepDiff(t1, t2))
-    next(actions) == "Delete root['routers'][1] with {'name': 'R2'}"
+    assert next(actions) == (DELETE, "root['routers'][1]", {"name": "R2"}, None)
     # Delete root['routers'][1] with {'name': 'R2'}
 
 
