@@ -1,9 +1,13 @@
 from deepdiff import DeepDiff, extract
 
+from functools import partial
+
 import yaml
 import re
 
 from typing import NamedTuple, Optional, Any
+
+UnorderedDeepDiff = partial(DeepDiff, ignore_order=True)
 
 
 class Action(NamedTuple):
@@ -35,17 +39,20 @@ def convert_to_actions(diff):
 def test_same():
     t1 = {1: 1, 2: 2, 3: 3}
     t2 = t1.copy()
-    assert DeepDiff(t1, t2) == {}
+    assert UnorderedDeepDiff(t1, t2) == {}
 
 
 def test_different():
     t1 = {1: 1, 2: 2, 3: 3}
     t2 = {1: 2, 2: 2, 3: 3}
-    assert DeepDiff(t1, t2) == {
+    assert UnorderedDeepDiff(t1, t2) == {
         "values_changed": {"root[1]": {"new_value": 2, "old_value": 1}}
     }
-    actions = convert_to_actions(DeepDiff(t1, t2))
+    actions = convert_to_actions(UnorderedDeepDiff(t1, t2))
     assert next(actions) == (UPDATE, "root[1]", 1, 2)
+    assert extract(t1, "root[1]") == 1
+    assert extract(t2, "root[1]") == 2
+    assert extract(t2, "root") == {1: 2, 2: 2, 3: 3}
     # Update root[1] from 1 to 2
 
 
@@ -68,10 +75,10 @@ def test_diff_tree_add_item():
     """
     )
 
-    assert DeepDiff(t1, t2) == {
+    assert UnorderedDeepDiff(t1, t2) == {
         "iterable_item_added": {"root['routers'][2]": {"name": "R3"}}
     }
-    actions = convert_to_actions(DeepDiff(t1, t2))
+    actions = convert_to_actions(UnorderedDeepDiff(t1, t2))
     assert next(actions) == (CREATE, "root['routers'][2]", None, {"name": "R3"})
     # Create root['routers'][2] with {'name': 'R3'}
 
@@ -93,10 +100,10 @@ def test_diff_tree_remove_item():
     """
     )
 
-    assert DeepDiff(t1, t2) == {
+    assert UnorderedDeepDiff(t1, t2) == {
         "iterable_item_removed": {"root['routers'][1]": {"name": "R2"}}
     }
-    actions = convert_to_actions(DeepDiff(t1, t2))
+    actions = convert_to_actions(UnorderedDeepDiff(t1, t2))
     assert next(actions) == (DELETE, "root['routers'][1]", {"name": "R2"}, None)
     # Delete root['routers'][1] with {'name': 'R2'}
 
@@ -132,7 +139,7 @@ def test_diff_tree_change_item():
         pattern = escape(pattern)
         return f"^{pattern}.*"
 
-    diff = DeepDiff(t1, t2)
+    diff = UnorderedDeepDiff(t1, t2)
     assert list(diff["values_changed"].keys())[0] == "root['routers'][1]['name']"
     assert (
         re.escape("root['routers'][1]['name']") == r"root\['routers'\]\[1\]\['name'\]"
@@ -153,6 +160,9 @@ def test_diff_tree_change_item():
             "root['routers'][1]['name']": {"new_value": "R3", "old_value": "R2"}
         }
     }
+
+    actions = convert_to_actions(UnorderedDeepDiff(t1, t2))
+    assert next(actions) == Action(operation='update', path="root['routers'][1]['name']", old_value='R2', new_value='R3')
 
 
 def test_extract_and_modify():
