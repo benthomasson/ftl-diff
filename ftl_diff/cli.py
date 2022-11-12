@@ -2,16 +2,13 @@
 
 """
 Usage:
-    desired-state [options] from <initial-state.yml> to <new-state.yml> [<rules.yml>]
-    desired-state [options] update-desired-state <new-state.yml>
-    desired-state [options] update-actual-state <new-state.yml>
+    desired-state [options] from <initial-state.yml> to <new-state.yml>
     desired-state [options] validate <state.yml> <schema.yml>
 
 Options:
     -h, --help              Show this page
     --debug                 Show debug logging
     --verbose               Show verbose logging
-    --explain               Do not run the rules, only print the ones that would run.
     --project-src=<d>       Copy project files this directory [default: .]
     --inventory=<i>         Inventory to use
     --cwd=<c>               Change working directory on start
@@ -19,7 +16,7 @@ Options:
 
 from .stream import WebsocketChannel, NullChannel
 from .validate import get_errors, validate
-from .collection import split_collection_name, has_rules, has_schema, load_rules, load_schema
+from .collection import split_collection_name, has_schema, load_schema
 from .types import get_meta
 from getpass import getpass
 from collections import defaultdict
@@ -121,33 +118,6 @@ def parse_options(parsed_args):
     return secrets, project_src, stream
 
 
-def load_rules_from_args_or_meta(parsed_args, state):
-
-    meta = get_meta(state)
-
-    if parsed_args['<rules.yml>']:
-        if os.path.exists(parsed_args['<rules.yml>']):
-            with open(parsed_args['<rules.yml>']) as f:
-                rules = yaml.safe_load(f.read())
-        elif has_rules(*split_collection_name(parsed_args['<rules.yml>'])):
-            rules = load_rules(
-                *split_collection_name(parsed_args['<rules.yml>']))
-        else:
-            raise Exception('No rules file found')
-    elif meta.rules:
-        if os.path.exists(meta.rules):
-            with open(meta.rules) as f:
-                rules = yaml.safe_load(f.read())
-        elif has_rules(*split_collection_name(meta.rules)):
-            rules = load_rules(*split_collection_name(meta.rules))
-        else:
-            raise Exception('No rules file found')
-    else:
-        raise Exception('No rules file found')
-
-    return rules
-
-
 def desired_state_from_to(parsed_args):
     '''
     Calculates the differene in state from initial-state to new-state executes those changes and exits.
@@ -169,10 +139,6 @@ def desired_state_from_to(parsed_args):
         new_desired_state = f.read()
 
     validate_state(yaml.safe_load(new_desired_state))
-
-    rules = load_rules_from_args_or_meta(parsed_args, initial_desired_state)
-
-    print(rules)
 
     return 0
 

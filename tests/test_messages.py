@@ -1,5 +1,3 @@
-
-
 from ftl_diff.messages import json_serialize, json_deserialize, Hello, Control
 from ftl_diff.messages import sequence, now
 

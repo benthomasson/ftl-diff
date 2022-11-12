@@ -1,4 +1,3 @@
-
 import pytest
 from ftl_diff.validate import validate, get_errors, ValidationError
 
@@ -20,9 +19,9 @@ def test_validate_simple():
             "name": {"type": "string"},
         },
     }
-    validate({"name" : "Eggs", "price" : 34.99}, schema)
+    validate({"name": "Eggs", "price": 34.99}, schema)
     with pytest.raises(ValidationError):
-        assert validate({"name" : "Eggs", "price" : "Invalid"}, schema)
+        assert validate({"name": "Eggs", "price": "Invalid"}, schema)
 
 
 def test_get_errors_simple():
@@ -33,5 +32,5 @@ def test_get_errors_simple():
             "name": {"type": "string"},
         },
     }
-    errors = get_errors({"name" : "Eggs", "price" : "Invalid"}, schema)
+    errors = get_errors({"name": "Eggs", "price": "Invalid"}, schema)
     assert len(list(errors)) == 1
