@@ -37,6 +37,7 @@ class Action(NamedTuple):
 UPDATE = "update"
 CREATE = "create"
 DELETE = "delete"
+RENAME = "rename"
 
 
 def convert_to_actions(diff, old_state, new_state):
@@ -58,6 +59,18 @@ def convert_to_actions(diff, old_state, new_state):
             for path in diff[key]:
                 value = extract(old_state, path)
                 yield Action(DELETE, path, value, None)
+        elif key == "type_changes":
+            for path, value in diff[key].items():
+                if value.get('old_type') == type(None) and value.get('new_type') == list:
+                    yield Action(CREATE, path, None, extract(new_state, path))
+                if value.get('old_type') == type(None) and value.get('new_type') == dict:
+                    yield Action(CREATE, path, None, extract(new_state, path))
+                if value.get('old_type') == list and value.get('new_type') == type(None):
+                    yield Action(DELETE, path, extract(old_state, path), None)
+                if value.get('old_type') == dict and value.get('new_type') == type(None):
+                    yield Action(DELETE, path, extract(old_state, path), None)
+        else:
+            print(key, diff[key])
 
 
 FORMAT = "[%(asctime)s] %(levelname)s [%(name)s.%(funcName)s:%(lineno)d] %(message)s"
