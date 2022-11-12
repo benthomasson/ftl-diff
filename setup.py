@@ -40,5 +40,10 @@ setup(
     tests_require=test_requirements,
     url='https://github.com/benthomasson/ftl_diff',
     version='0.1.0',
+    entry_points={
+        'console_scripts': [
+            'ftl_diff=ftl_diff.cli:main',
+        ]
+    },
     zip_safe=False,
 )

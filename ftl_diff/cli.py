@@ -1,5 +1,3 @@
-
-
 """
 Usage:
     desired-state [options] from <initial-state.yml> to <new-state.yml>
@@ -9,83 +7,97 @@ Options:
     -h, --help              Show this page
     --debug                 Show debug logging
     --verbose               Show verbose logging
-    --project-src=<d>       Copy project files this directory [default: .]
-    --inventory=<i>         Inventory to use
-    --cwd=<c>               Change working directory on start
 """
 
-from .stream import WebsocketChannel, NullChannel
 from .validate import get_errors, validate
 from .collection import split_collection_name, has_schema, load_schema
 from .types import get_meta
-from getpass import getpass
-from collections import defaultdict
 from docopt import docopt
 import yaml
 import os
 import sys
 import logging
+from deepdiff import DeepDiff, extract
+
+from functools import partial
+
+from typing import NamedTuple, Optional, Any
+
+UnorderedDeepDiff = partial(DeepDiff, ignore_order=True)
+
+
+class Action(NamedTuple):
+
+    operation: str
+    path: str
+    old_value: Optional[Any] = None
+    new_value: Optional[Any] = None
+
+
+UPDATE = "update"
+CREATE = "create"
+DELETE = "delete"
+
+
+def convert_to_actions(diff, old_state, new_state):
+    for key in diff.keys():
+        if key == "values_changed":
+            for path, value in diff[key].items():
+                yield Action(UPDATE, path, value["old_value"], value["new_value"])
+        elif key == "iterable_item_added":
+            for path, value in diff[key].items():
+                yield Action(CREATE, path, None, value)
+        elif key == "iterable_item_removed":
+            for path, value in diff[key].items():
+                yield Action(DELETE, path, value, None)
+        elif key == "dictionary_item_added":
+            for path in diff[key]:
+                value = extract(new_state, path)
+                yield Action(CREATE, path, None, value)
+        elif key == "dictionary_item_removed":
+            for path in diff[key]:
+                value = extract(old_state, path)
+                yield Action(DELETE, path, value, None)
 
 
 FORMAT = "[%(asctime)s] %(levelname)s [%(name)s.%(funcName)s:%(lineno)d] %(message)s"
-logging.basicConfig(filename='/tmp/desired_state.log', level=logging.DEBUG, format=FORMAT)  # noqa
-logging.debug('Logging started')
-logging.debug('Loading runner')
-logging.debug('Loaded runner')
+logging.basicConfig(
+    filename="/tmp/desired_state.log", level=logging.DEBUG, format=FORMAT
+)  # noqa
+logging.debug("Logging started")
+logging.debug("Loading runner")
+logging.debug("Loaded runner")
 
-logger = logging.getLogger('cli')
+logger = logging.getLogger("cli")
 
 
 def main(args=None):
-    '''
+    """
     Main function for the CLI.
-    '''
+    """
 
     if args is None:
         args = sys.argv[1:]
     parsed_args = docopt(__doc__, args)
-    if parsed_args['--debug']:
+    if parsed_args["--debug"]:
         logging.basicConfig(level=logging.DEBUG)
-    elif parsed_args['--verbose']:
+    elif parsed_args["--verbose"]:
         logging.basicConfig(level=logging.INFO)
     else:
         logging.basicConfig(level=logging.WARNING)
 
-    if parsed_args['--cwd']:
-        os.chdir(parsed_args['--cwd'])
-
-    if parsed_args['from'] and parsed_args['to']:
+    if parsed_args["from"] and parsed_args["to"]:
         return desired_state_from_to(parsed_args)
-    elif parsed_args['validate']:
+    elif parsed_args["validate"]:
         return desired_state_validate(parsed_args)
     else:
-        assert False, 'Update the docopt'
-
-
-def inventory(parsed_args, state):
-    '''
-    Loads an inventory
-    '''
-
-    meta = get_meta(state)
-
-    if meta.inventory and os.path.exists(meta.inventory):
-        print('inventory:', meta.inventory)
-        with open(meta.inventory) as f:
-            return f.read()
-    elif not parsed_args['--inventory']:
-        print('inventory:', 'localhost only')
-        return "all:\n  hosts:\n    localhost: ansible_connection=local\n"
-    else:
-        print('inventory:', parsed_args['--inventory'])
-        with open(parsed_args['--inventory']) as f:
-            return f.read()
+        assert False, "Update the docopt"
 
 
 def validate_state(state):
-    '''
+    """
     Validates state using schema if it is found in the meta data of the state.
-    '''
+    """
 
     meta = get_meta(state)
 
@@ -100,58 +112,32 @@ def validate_state(state):
         validate(state, schema)
 
 
-def parse_options(parsed_args):
-
-    secrets = defaultdict(str)
-
-    if parsed_args['--ask-become-pass'] and not secrets['become']:
-        secrets['become'] = getpass()
-
-    if parsed_args['--stream']:
-        stream = WebsocketChannel(parsed_args['--stream'])
-    else:
-        stream = NullChannel()
-
-    project_src = os.path.abspath(
-        os.path.expanduser(parsed_args['--project-src']))
-
-    return secrets, project_src, stream
-
-
 def desired_state_from_to(parsed_args):
-    '''
-    Calculates the differene in state from initial-state to new-state executes those changes and exits.
-    '''
+    """
+    Calculates the difference in state from initial-state to new-state
+    """
 
-    secrets, project_src, stream = parse_options(parsed_args)
+    with open(parsed_args["<initial-state.yml>"]) as f:
+        initial_state = yaml.safe_load(f.read())
 
-    threads = []
+    with open(parsed_args["<new-state.yml>"]) as f:
+        new_state = yaml.safe_load(f.read())
 
-    if stream.thread:
-        threads.append(stream.thread)
+    actions = convert_to_actions(UnorderedDeepDiff(initial_state, new_state), initial_state, new_state)
 
-    with open(parsed_args['<initial-state.yml>']) as f:
-        initial_desired_state = yaml.safe_load(f.read())
-
-    validate_state(initial_desired_state)
-
-    with open(parsed_args['<new-state.yml>']) as f:
-        new_desired_state = f.read()
-
-    validate_state(yaml.safe_load(new_desired_state))
-
+    print(yaml.dump([action._asdict() for action in actions]))
     return 0
 
 
 def desired_state_validate(parsed_args):
-    '''
+    """
     Validates a state using the schema and prints a list of errors in the state.
-    '''
+    """
 
-    with open(parsed_args['<state.yml>']) as f:
+    with open(parsed_args["<state.yml>"]) as f:
         state = yaml.safe_load(f.read())
 
-    with open(parsed_args['<schema.yml>']) as f:
+    with open(parsed_args["<schema.yml>"]) as f:
         schema = yaml.safe_load(f.read())
 
     for error in get_errors(state, schema):
